@@ -115,25 +115,6 @@
      </item>
     </layout>
    </widget>
-   <widget class="QLabel" name="label_FPS">
-    <property name="geometry">
-     <rect>
-      <x>110</x>
-      <y>480</y>
-      <width>51</width>
-      <height>21</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <family>Arial</family>
-      <pointsize>14</pointsize>
-     </font>
-    </property>
-    <property name="text">
-     <string>FPS</string>
-    </property>
-   </widget>
    <widget class="QLabel" name="label_LCTF">
     <property name="geometry">
      <rect>
@@ -403,25 +384,6 @@
      </rect>
     </property>
    </widget>
-   <widget class="QLabel" name="label_LCTFState">
-    <property name="geometry">
-     <rect>
-      <x>380</x>
-      <y>480</y>
-      <width>91</width>
-      <height>20</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <family>Arial</family>
-      <pointsize>14</pointsize>
-     </font>
-    </property>
-    <property name="text">
-     <string>LCTF状态</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="pushButton_pause">
     <property name="geometry">
      <rect>
@@ -474,44 +436,6 @@
      <string>打开光谱仪</string>
     </property>
    </widget>
-   <widget class="QLabel" name="static_FPS">
-    <property name="geometry">
-     <rect>
-      <x>50</x>
-      <y>470</y>
-      <width>51</width>
-      <height>40</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <family>Arial</family>
-      <pointsize>14</pointsize>
-     </font>
-    </property>
-    <property name="text">
-     <string>帧率：</string>
-    </property>
-   </widget>
-   <widget class="QLabel" name="static_LCTFState">
-    <property name="geometry">
-     <rect>
-      <x>270</x>
-      <y>470</y>
-      <width>111</width>
-      <height>40</height>
-     </rect>
-    </property>
-    <property name="font">
-     <font>
-      <family>Arial</family>
-      <pointsize>14</pointsize>
-     </font>
-    </property>
-    <property name="text">
-     <string>LCTF当前：</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="pushButton_PhotoOnce">
     <property name="geometry">
      <rect>
@@ -537,6 +461,96 @@
     <property name="text">
      <string>设置</string>
     </property>
+   </widget>
+   <widget class="QPushButton" name="pushButton_checkphoto">
+    <property name="geometry">
+     <rect>
+      <x>680</x>
+      <y>10</y>
+      <width>71</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>查看单拍</string>
+    </property>
+   </widget>
+   <widget class="QWidget" name="">
+    <property name="geometry">
+     <rect>
+      <x>50</x>
+      <y>470</y>
+      <width>431</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <item>
+      <widget class="QLabel" name="static_FPS">
+       <property name="font">
+        <font>
+         <family>Arial</family>
+         <pointsize>14</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>帧率：</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_FPS">
+       <property name="font">
+        <font>
+         <family>Arial</family>
+         <pointsize>14</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>FPS</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="horizontalSpacer_3">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>98</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="static_LCTFState">
+       <property name="font">
+        <font>
+         <family>Arial</family>
+         <pointsize>14</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>LCTF当前：</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="label_LCTFState">
+       <property name="font">
+        <font>
+         <family>Arial</family>
+         <pointsize>14</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>LCTF状态</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menuBar">

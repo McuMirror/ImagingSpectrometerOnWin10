@@ -5,8 +5,11 @@ MyWindow::MyWindow(QWidget *parent)
 {
 	ui.setupUi(this);
 
+	//this->setWindowState(Qt::WindowMaximized);
+
 	m_mydevice = new ImagingSpectrometers;
 	m_config_dialog = new ConfigDialog;
+	m_photocheck_window = new PhotoCheckWindow;
 
 	m_mydevice->getMainWindow(this);//获取主窗口指针
 
@@ -30,6 +33,7 @@ MyWindow::MyWindow(QWidget *parent)
 	connect(ui.pushButton_photo, SIGNAL(clicked()), this, SLOT(photo()));
 	connect(ui.pushButton_PhotoOnce, SIGNAL(clicked()), this, SLOT(photoOnce()));
 	connect(ui.pushButton_config, SIGNAL(clicked()), this, SLOT(showConfigDialog()));
+	connect(ui.pushButton_checkphoto, SIGNAL(clicked()), this, SLOT(showPhotoCheckWindow()));
 
 	connect(ui.lineEdit_WLGap, SIGNAL(editingFinished()), this, SLOT(setWavelengthGap()));
 	connect(ui.lineEdit_ExposureTime, SIGNAL(editingFinished()), this, SLOT(setExposureTime_lineEdit()));
@@ -49,6 +53,7 @@ MyWindow::MyWindow(QWidget *parent)
 
 	//自定义的设置窗口相关信号
 	connect(m_config_dialog->ui.pushButton_accept, SIGNAL(clicked()), this, SLOT(setConfig()));
+	connect(m_photocheck_window->ui.pushButton_back, SIGNAL(clicked()), this, SLOT(closePhotoCheckWindow()));
 
 	initializeUI();//此处设置控件最初状态
 	initializePath();//创建相关路径
@@ -380,8 +385,8 @@ void MyWindow::whiteboard()
 		int digitalGain = 0;
 		int analogGain = 0;
 		int count;
-		int thresholdLower = 240;
-		int thresholdUpper = 252;
+		int thresholdLower = 0xF00;//12位需要修改阈值
+		int thresholdUpper = 0xFC0;
 		int pixelValueMax = 0;
 		int sum;
 		int step = 10;
@@ -418,7 +423,7 @@ void MyWindow::whiteboard()
 				while (count < photo_data_size - step){
 					sum = 0;
 					for (int i = 0; i < step; ++i) {
-						sum += (data_photo_processing.data[count + i] & 0x00FF);
+						sum += (data_photo_processing.data[count + i] & 0x0FFF);//12位需要修改
 					}
 					if (sum / step > thresholdUpper) {
 						isParameterAvailable = false;
@@ -492,7 +497,7 @@ void MyWindow::whiteboard()
 			char c[5] = {0};
 			itoa(w, c, 10);
 			String t(c);
-			String path = correctionPath + "/" + t + ".bmp";
+			String path = correctionPath + "/" + t + ".exr";
 			cv::imwrite(path, data_photo_processing);
 
 			cameraParW[cameraParIndex++] = (byte)exposureTime;
@@ -621,7 +626,7 @@ void MyWindow::photo()
 					String t(c);
 					//char ic[1] = { 0 };
 					//itoa(i, ic, 10);
-					cv::String name = photoPath + t + ".bmp";
+					cv::String name = photoPath + t + ".exr";
 					cv::imwrite(name, data_photo_processing);
 	/*			}*/
 				len += LCTF_Gap;			
@@ -664,8 +669,12 @@ void MyWindow::photoOnce()
 	}
 	int PHOTO_TIMES = m_mydevice->getPhotoTimes();
 	Mat data_temp;
+	int photo_height = m_mydevice->getPhotoHeight();
+	int photo_width = m_mydevice->getPhotoWidth();
 
 	m_mydevice->pauseDevice();
+	//分辨率设置为大分辨率
+	m_mydevice->setResolution(photo_width, photo_height);
 
 	for (int i = 0; i < PHOTO_TIMES; i++)
 	{
@@ -681,10 +690,11 @@ void MyWindow::photoOnce()
 		char a[1] = {0};
 		itoa(i,a,10);
 		String num = a;
-		String nameFull = photoPath + '/' + name + '(' + num + ')' + ".bmp";
+		String nameFull = photoPath + '/' + name + '(' + num + ')' + ".exr";
 		cv::imwrite(nameFull, data_temp);
 	}
 
+	m_mydevice->setResolution(640, 480);
 	m_mydevice->continueDevice();
 }
 
@@ -902,4 +912,28 @@ void MyWindow::setConfig()
 	m_config_dialog->close();
 }
 
+void MyWindow::showPhotoCheckWindow()
+{
+	std::string path;
+	std::vector<std::string> files;
 
+	path = "C:/ImagingSpectrometers/photoFiles/";
+	int photo_height = m_mydevice->getPhotoHeight();
+	int photo_width = m_mydevice->getPhotoWidth();
+	////获取该路径下的所有文件  
+
+	//m_mydevice->pauseDevice();
+	m_mydevice->getFileList(path, files);
+	m_photocheck_window->setFileList(files);
+	m_photocheck_window->setPhotoSize(photo_height, photo_width);
+	
+	
+
+	m_photocheck_window->show();
+
+}
+
+void MyWindow::closePhotoCheckWindow()
+{
+	//m_mydevice->continueDevice();
+}

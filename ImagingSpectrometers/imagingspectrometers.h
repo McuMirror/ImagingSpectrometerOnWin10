@@ -1,7 +1,12 @@
 #pragma once
 #include <QtWidgets>
+
+#ifndef __WIN__
 #include <Windows.h>
 #include <fstream>
+#include <io.h>
+#define __WIN__
+#endif
 
 #ifndef __CYAPI__
 #include "CyAPI.h"
@@ -59,6 +64,7 @@ public:
 	void getData();//获取原始数据
 	void getImage();//变为图像显示
 	Mat takephoto();
+	Mat getMatFromFile(String path);
 
 	String getCorrectionPath();
 	String getPhotoPath();
@@ -70,6 +76,7 @@ public:
 
 	bool writeConfigFile(String, byte *,int);
 	bool readConfigFile(String, char *);
+	void getFileList(std::string path, std::vector<std::string>& files);
 
 public:
 	CCyUSBDevice *m_usb_device;
@@ -79,14 +86,14 @@ public:
 	QPixmap m_pixmap;//显示用图片
 
 private:
-	int m_data_height;
-	int m_data_width;
+	const int m_data_height;
+	const int m_data_width;
 
-	int m_image_height;
-	int m_image_width;
+	const int m_image_height;
+	const int m_image_width;
 
-	int m_photo_height;
-	int m_photo_width;
+	const int m_photo_height;
+	const int m_photo_width;
 
 	bool m_is_LCTF_ready;
 	int m_LCTF_min;
@@ -96,8 +103,8 @@ private:
 	int m_LCTF_bandcount;
 	int m_LCTF_wavelength;
 
-	LONG m_image_data_size;
-	LONG m_photo_data_size;
+	const LONG m_image_data_size;
+	const LONG m_photo_data_size;
 	QObject *m_mainWindow;//主线程指针
 
 	String m_system_path;

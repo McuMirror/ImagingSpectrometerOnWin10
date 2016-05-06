@@ -6,6 +6,7 @@
 #include "imagingspectrometers.h"
 #include "ui_mywindow.h"
 #include "configdialog.h"
+#include "photocheckwindow.h"
 
 class MyWindow : public QMainWindow
 {
@@ -44,10 +45,14 @@ public slots:
 	void showConfigDialog();
 	void setConfig();
 
+	void showPhotoCheckWindow();
+	void closePhotoCheckWindow();
+
 
 private:
 	ImagingSpectrometers *m_mydevice;//模型类，负责数据加工
 	ConfigDialog *m_config_dialog;
+	PhotoCheckWindow *m_photocheck_window;
 	QThread m_thread;//子线程，用于将模型类中的dowork依附于此子线程
 	QTimer *m_timer;
 	int m_frame_count;

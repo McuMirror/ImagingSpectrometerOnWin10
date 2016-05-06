@@ -15,11 +15,11 @@ ImagingSpectrometers::ImagingSpectrometers(QObject *parent)
 	m_image_width(m_data_width),
 	m_image_height(m_data_height),
 	m_LCTF_gap(10),
-	m_system_path("E:/ImagingSpectrometers/"),
-	m_correction_path("E:/ImagingSpectrometers/correctionFiles/"),
-	m_photo_path("E:/ImagingSpectrometers/photoFiles/"),
+	m_system_path("C:/ImagingSpectrometers/"),
+	m_correction_path("C:/ImagingSpectrometers/correctionFiles/"),
+	m_photo_path("C:/ImagingSpectrometers/photoFiles/"),
 	m_custom_path("0001"),
-	m_photo_times(2)
+	m_photo_times(1)
 {
 }
 
@@ -508,9 +508,14 @@ void ImagingSpectrometers::setResolution(int width, int height)
 	int m, n, p1, p2;
 	if (width == 1280 && height == 960)
 	{
-		x1 = 0x00; y1 = 0x09; x2 = 0x00; y2 = 0x08;//x1 y1 x2 y2设置结束点横坐标和纵坐标值
-		x3 = 0x03; y3 = 0xC8; x4 = 0x05; y4 = 0x07;
-		x5 = 0x04; y5 = 0x68; x6 = 0x07; y6 = 0x72;
+		//x1 = 0x00; y1 = 0x09; x2 = 0x00; y2 = 0x08;//x1 y1 x2 y2设置结束点横坐标和纵坐标值
+		//x3 = 0x03; y3 = 0xC8; x4 = 0x05; y4 = 0x07;
+		//x5 = 0x03; y5 = 0xDA; x6 = 0x06; y6 = 0x72;//注意这两个参数实际上手册上有说明
+
+		x1 = 0x00; y1 = 0x02; x2 = 0x00; y2 = 0x00;
+		x3 = 0x03; y3 = 0xC1; x4 = 0x04; y4 = 0xFF;//安卓上这样写的
+		x5 = 0x03; y5 = 0xDA; x6 = 0x26; y6 = 0x72;
+		m = 0x20; n = 0x02; p1 = 0x04; p2 = 0x0C;
 		m = 0x20; n = 0x02; p1 = 0x03; p2 = 0x05;
 	}
 	else if (width == 1024 && height == 768)
@@ -518,12 +523,14 @@ void ImagingSpectrometers::setResolution(int width, int height)
 		x1 = 0x00; y1 = 0x69; x2 = 0x00; y2 = 0x88;
 		x3 = 0x03; y3 = 0x68; x4 = 0x04; y4 = 0x87;
 		x5 = 0x03; y5 = 0xDE; x6 = 0x06; y6 = 0x72;
-		m = 0x20; n = 0x02; p1 = 0x03; p2 = 0x04;
+		m = 0x20; n = 0x02; p1 = 0x04; p2 = 0x0A;
 	}
 	else if (width == 640 && height == 480)
 	{
 		x1 = 0x00; y1 = 0xF9; x2 = 0x01; y2 = 0x48;
 		x3 = 0x03; y3 = 0x78; x4 = 0x03; y4 = 0xC7;
+		//x1 = 0x00; y1 = 0x02; x2 = 0x00; y2 = 0x00;
+		//x3 = 0x03; y3 = 0x06; x4 = 0x01; y4 = 0xE1;
 		x5 = 700 / 255; y5 = 700 % 255; x6 = 1400 / 255; y6 = 1400 % 255;
 		m = 0x22; n = 0x02; p1 = 0x03; p2 = 0x04;
 	}
@@ -598,18 +605,15 @@ Mat ImagingSpectrometers::takephoto()
 	CloseHandle(in_overlap.hEvent);
 	if (flag_data_received)
 	{
-		Mat image_8UC2_raw;
-		image_8UC2_raw = Mat(m_photo_height, m_photo_width, CV_8UC2, m_photo_data);
+		Mat image_16UC1_raw;
+		image_16UC1_raw = Mat(m_photo_height, m_photo_width, CV_16UC1, m_photo_data);
 
-		std::vector<Mat> mat_vector;
-		split(image_8UC2_raw, mat_vector);
-
-		Mat temp = Mat(mat_vector[0]);
+		Mat temp = image_16UC1_raw;
 		return temp;
 	}
 	else
 	{
-		Mat temp = Mat(m_photo_height, m_photo_width, CV_8UC1, Scalar::all(0));
+		Mat temp = Mat(m_photo_height, m_photo_width, CV_16UC1, Scalar::all(0));
 		return temp;
 	}
 }
@@ -646,7 +650,7 @@ bool ImagingSpectrometers::readConfigFile(String path, char* config)
 	//fclose(fp);
 
 	std::ifstream ifs(str, std::ios::in | std::ios::binary);
-	char temp[150] = { 0 };
+	//char temp[150] = { 0 };
 	ifs.read(config, 150);
 	ifs.close();
 
@@ -686,4 +690,59 @@ void ImagingSpectrometers::setPhotoTimes(int times)
 int ImagingSpectrometers::getPhotoTimes()
 {
 	return m_photo_times;
+}
+
+Mat ImagingSpectrometers::getMatFromFile(String path)
+{
+	Mat output(m_photo_height, m_photo_width, CV_16UC1, 0);
+	String type = path.substr(path.find_last_of('.'));
+	if (type == ".exr")
+	{
+		output = imread(path, CV_LOAD_IMAGE_ANYDEPTH | CV_LOAD_IMAGE_ANYCOLOR);
+		output.convertTo(output, CV_16UC1);
+	}
+	else if (type == ".bin")
+	{
+		std::ifstream ifs(path, std::ios::in | std::ios::binary);
+		long len = m_photo_data_size * 2;
+		byte *temp;
+		temp = new UCHAR[m_photo_data_size*2];
+		ZeroMemory(temp,m_photo_data_size*2);
+		ifs.read((char*)temp, len);
+		ifs.close();
+		Mat t = Mat(m_photo_height, m_photo_width, CV_16UC1, temp);
+		t.copyTo(output);
+		delete[] temp;
+		temp = nullptr;
+	}
+
+	return output;
+		
+}
+
+void ImagingSpectrometers::getFileList(std::string path, std::vector<std::string>& files)
+{
+	//文件句柄  
+	long   hFile = 0;
+	//文件信息  
+	struct _finddata_t fileinfo;
+	std::string p;
+	if ((hFile = _findfirst(p.assign(path).append("\\*").c_str(), &fileinfo)) != -1)
+	{
+		do
+		{
+			//如果是目录,迭代之  
+			//如果不是,加入列表  
+			if ((fileinfo.attrib &  _A_SUBDIR))
+			{
+				if (strcmp(fileinfo.name, ".") != 0 && strcmp(fileinfo.name, "..") != 0)
+					getFileList(p.assign(path).append("\\").append(fileinfo.name), files);
+			}
+			else
+			{
+				files.push_back(p.assign(path).append("\\").append(fileinfo.name));
+			}
+		} while (_findnext(hFile, &fileinfo) == 0);
+		_findclose(hFile);
+	}
 }
