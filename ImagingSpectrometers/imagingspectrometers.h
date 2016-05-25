@@ -63,8 +63,13 @@ public:
 
 	void getData();//获取原始数据
 	void getImage();//变为图像显示
+	void getImage_hist();
 	Mat takephoto();
 	Mat getMatFromFile(String path);
+
+	void getCurvesMat();
+	//bool writeCurvesMat();
+	//bool readCurvesMat();
 
 	String getCorrectionPath();
 	String getPhotoPath();
@@ -84,6 +89,8 @@ public:
 	CCyControlEndPoint *m_ept_control;  //控制端点
 
 	QPixmap m_pixmap;//显示用图片
+	Mat m_curvesMat;//光谱曲线数据
+	Mat m_wavelengthMat;//与光谱曲线对应波长值
 
 private:
 	const int m_data_height;

@@ -188,27 +188,76 @@ void ImagingSpectrometers::getData()
 }
 
 //将数据变为显示用图片数据
+//void ImagingSpectrometers::getImage()
+//{
+//
+////	getImage_hist();
+//
+//	Mat image_8UC2_raw;
+//	image_8UC2_raw = Mat(m_image_height, m_image_width, CV_8UC2, m_image_data);
+//
+//	std::vector<Mat> mat_vector;
+//	split(image_8UC2_raw, mat_vector);
+//
+//	Mat image_tmp;
+//	cvtColor(mat_vector[0], image_tmp, CV_GRAY2RGB);//单通道变为3通道
+//
+//	Mat image_show;
+//	image_show = image_tmp.clone();
+//	QImage image_final = QImage(image_show.data, image_show.cols, image_show.rows, image_show.step, QImage::Format_RGB888);
+//	m_pixmap = QPixmap::fromImage(image_final);
+//
+//}
+
 void ImagingSpectrometers::getImage()
 {
-	//Mat image_8UC1_raw;
-	//image_8UC1_raw = Mat(m_image_height, m_image_width, CV_8UC1, m_image_data);
 
-	//Mat image_tmp;
-	//cvtColor(image_8UC1_raw, image_tmp, CV_GRAY2RGB);//单通道变为3通道
+	//	getImage_hist();
 
-	Mat image_8UC2_raw;
-	image_8UC2_raw = Mat(m_image_height, m_image_width, CV_8UC2, m_image_data);
+	Mat image_16UC1_raw;
+	image_16UC1_raw = Mat(m_image_height, m_image_width, CV_16UC1, m_image_data);
 
-	std::vector<Mat> mat_vector;
-	split(image_8UC2_raw, mat_vector);
-	
+	double min, max;
+	minMaxIdx(image_16UC1_raw, &min, &max);
+
+	Mat image_16UC1_temp;
+	image_16UC1_raw.copyTo(image_16UC1_temp);
+
+	Mat image_8UC1_temp;
+	image_16UC1_temp.convertTo(image_8UC1_temp, CV_8U, 0.06227);
+
 	Mat image_tmp;
-	cvtColor(mat_vector[0], image_tmp, CV_GRAY2RGB);//单通道变为3通道
+	cvtColor(image_8UC1_temp, image_tmp, CV_GRAY2RGB);//单通道变为3通道
 
 	Mat image_show;
 	image_show = image_tmp.clone();
 	QImage image_final = QImage(image_show.data, image_show.cols, image_show.rows, image_show.step, QImage::Format_RGB888);
 	m_pixmap = QPixmap::fromImage(image_final);
+
+}
+
+void ImagingSpectrometers::getImage_hist()
+{
+	Mat image_16UC1_raw;
+	image_16UC1_raw = Mat(m_image_height, m_image_width, CV_16UC1, m_image_data);
+
+	/// 设定bin数目
+	int histSize = 0x0FFF;
+
+	/// 设定取值范围 ( R,G,B) )
+	float range[] = { 0, 0x0FFF };
+	const float* histRange = { range };
+
+	bool uniform = true; bool accumulate = false;
+	Mat hist;
+	calcHist(&image_16UC1_raw, 1, 0, Mat(), hist, 1, &histSize, &histRange, uniform, accumulate);
+
+	normalize(hist, hist, 0, 255, NORM_MINMAX, -1, Mat());
+
+	//Mat image_show;
+	//image_show = image_tmp.clone();
+	//QImage image_final = QImage(image_show.data, image_show.cols, image_show.rows, image_show.step, QImage::Format_RGB888);
+	//m_pixmap = QPixmap::fromImage(image_final);
 
 }
 
@@ -694,7 +743,7 @@ int ImagingSpectrometers::getPhotoTimes()
 
 Mat ImagingSpectrometers::getMatFromFile(String path)
 {
-	Mat output(m_photo_height, m_photo_width, CV_16UC1, 0);
+	Mat output(m_photo_height, m_photo_width, CV_16UC1, Scalar::all(0));
 	String type = path.substr(path.find_last_of('.'));
 	if (type == ".exr")
 	{
@@ -746,3 +795,68 @@ void ImagingSpectrometers::getFileList(std::string path, std::vector<std::string
 		_findclose(hFile);
 	}
 }
+
+void ImagingSpectrometers::getCurvesMat()
+{
+	//判断文件夹是否为空
+	std::vector<std::string> correctionMatVector;
+	std::vector<std::string> photoMatVector;
+	getFileList(m_correction_path, correctionMatVector);
+	getFileList(m_photo_path + m_custom_path + "/", photoMatVector);
+	int size = correctionMatVector.size() - 1;
+	Mat temp = Mat(2, size, CV_8UC1, 0);
+	if (size != photoMatVector.size())
+	{
+		return;
+	}
+
+	Mat allWavelengthMat = Mat::zeros(1, size, CV_16UC1);
+	Mat allCurvesMat = Mat::zeros(m_photo_data_size,size,CV_32FC1);
+	Mat temp_c,temp_p,temp_curves,temp_oneCol;
+	std::string str = "//";
+
+	for (int i = 0; i < size; i++)
+	{
+		temp_c = getMatFromFile(correctionMatVector[i]);
+		temp_c.convertTo(temp_c, CV_32F);
+		temp_p = getMatFromFile(photoMatVector[i]);
+		temp_p.convertTo(temp_p, CV_32F);
+		divide(temp_c, temp_p, temp_curves);
+		temp_oneCol = temp_curves.reshape(0, m_photo_data_size);
+		temp_oneCol.copyTo(allCurvesMat.col(i));	
+
+		int n = correctionMatVector[i].find_last_of(str);
+		std::string str2 = correctionMatVector[i].substr(n+2);
+		int t = str2.find(".");
+		QString str3 = QString::fromStdString(str2.substr(0,t));
+		allWavelengthMat.at<USHORT>(i) = str3.toInt();
+	}
+	m_curvesMat = allCurvesMat;
+	m_wavelengthMat = allWavelengthMat;
+	//writeCurvesMat();
+	return;
+}
+
+//bool ImagingSpectrometers::writeCurvesMat()
+//{
+//	FileStorage fs(m_photo_path + m_custom_path + "/curves.yml", FileStorage::WRITE);
+//	if (!fs.isOpened())
+//		return false;
+//	fs << "curves" << m_curvesMat;
+//	fs << "wavelength" << m_wavelengthMat;
+//	fs.release();
+//
+//	return true;
+//}
+//
+//bool ImagingSpectrometers::readCurvesMat()
+//{
+//	FileStorage fs(m_photo_path + m_custom_path + "/curves.yml", FileStorage::READ);
+//	if (!fs.isOpened())
+//		return false;
+//	fs["curves"] >> m_curvesMat;
+//	fs["wavelength"] >> m_wavelengthMat;
+//	fs.release();
+//
+//	return true;
+//}

@@ -3,10 +3,17 @@
 
 #include <QtWidgets/QMainWindow>
 #include <direct.h>
+
+#ifndef __IMAGINGSPEC__
 #include "imagingspectrometers.h"
+#define __IMAGINGSPEC__
+#endif
+
 #include "ui_mywindow.h"
 #include "configdialog.h"
 #include "photocheckwindow.h"
+#include "spectralanalysis.h"
+#include "myspecthread.h"
 
 class MyWindow : public QMainWindow
 {
@@ -45,6 +52,8 @@ public slots:
 	void showConfigDialog();
 	void setConfig();
 
+	void setCurvesMat(int x, int y);
+
 	void showPhotoCheckWindow();
 	void closePhotoCheckWindow();
 
@@ -53,7 +62,9 @@ private:
 	ImagingSpectrometers *m_mydevice;//模型类，负责数据加工
 	ConfigDialog *m_config_dialog;
 	PhotoCheckWindow *m_photocheck_window;
+	SpectralAnalysis *m_specAnalysis_window;
 	QThread m_thread;//子线程，用于将模型类中的dowork依附于此子线程
+	MySpecThread *m_thread_curves;//用于生成光谱曲线，在拍照后执行
 	QTimer *m_timer;
 	int m_frame_count;
 

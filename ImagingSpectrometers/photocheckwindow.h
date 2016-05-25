@@ -30,11 +30,15 @@ public:
 	void setFileList(std::vector<std::string> &files);
 	void setPhotoSize(int h, int w);
 	Mat getMatFromFile(cv::String path);
+	Mat gethist(Mat &t);
+	String getCurrentFilePath();
 
 public slots:
 	void checkBackward();
 	void checkForward();
 	void updateImage();
+	void updateMousePos(int x,int y);
+	
 private:
 	std::vector<std::string> m_files;
 	int m_current_file_index;
@@ -43,6 +47,12 @@ private:
 	int m_photo_width;
 public:
 	QPixmap m_pixmap;
+
+public:
+	
+//	void mousePressEvent(QMouseEvent * e);
+//	void mouseReleaseEvent(QMouseEvent * e);
+//	void mouseDoubleClickEvent(QMouseEvent * e);
 	
 };
 

@@ -8,13 +8,21 @@ PhotoCheckWindow::PhotoCheckWindow(QWidget *parent)
 	m_max_file_index(0)
 {
 	ui.setupUi(this);
+	Qt::WindowFlags flag = 0;
 
-	this->setWindowFlags(Qt::Dialog);
+	flag = Qt::Window;
+	flag |= Qt::WindowCloseButtonHint;
+
+	this->setWindowFlags(flag);
 	this->setWindowModality(Qt::WindowModal);//此处的模态设置无效，需要指定parent
 
 	connect(ui.pushButton_backward, SIGNAL(clicked()), this, SLOT(checkBackward()));
 	connect(ui.pushButton_forward, SIGNAL(clicked()), this, SLOT(checkForward()));
 	connect(ui.pushButton_back, SIGNAL(clicked()), this, SLOT(close()));
+	connect(ui.label, SIGNAL(mouseMove(int, int)), this, SLOT(updateMousePos(int, int)));
+	connect(ui.label, SIGNAL(mousePress(int, int)), this, SLOT(updateCurves(int, int)));
+
+	setCursor(Qt::CrossCursor); //设置鼠标为十字星
 
 }
 
@@ -26,15 +34,28 @@ PhotoCheckWindow::~PhotoCheckWindow()
 void PhotoCheckWindow::checkBackward()
 {
 	if (m_current_file_index != 0)
+	{
 		--m_current_file_index;
+	}
+	else
+	{
+		m_current_file_index = m_max_file_index;
+	}
+
 
 	QMetaObject::invokeMethod(this, "updateImage", Qt::QueuedConnection);
 }
 
 void PhotoCheckWindow::checkForward()
 {
-	if (m_current_file_index != m_max_file_index - 1)
+	if (m_current_file_index != m_max_file_index)
+	{
 		++m_current_file_index;
+	}
+	else
+	{
+		m_current_file_index = 0;
+	}
 
 	QMetaObject::invokeMethod(this, "updateImage", Qt::QueuedConnection);
 }
@@ -43,16 +64,54 @@ void PhotoCheckWindow::updateImage()
 {
 	Mat temp;
 	temp = getMatFromFile(m_files[m_current_file_index]);
-	Mat image_tmp(temp.rows, temp.cols, CV_8UC2, temp.data);
+
+	//Mat hist_mat;
+	//hist_mat = gethist(temp);
+	Mat temp2;
+	temp.convertTo(temp2, CV_16UC1/*, 16.00366*/);
+
+	Mat image_tmp(temp2.rows, temp2.cols, CV_8UC2, temp2.data);
 	//temp.convertTo(image_tmp, CV_8U/*, 0.062271*/);
 	std::vector<Mat> mat_vector;
 	split(image_tmp, mat_vector);
+	Mat low8_mat = mat_vector[0];
+	Mat high8_mat = mat_vector[1];
+
 	QImage image_final = QImage(mat_vector[0].data, mat_vector[0].cols, mat_vector[0].rows, mat_vector[0].step, QImage::Format_Grayscale8);
+	//QImage image_final = QImage(hist_mat.data, hist_mat.cols, hist_mat.rows, hist_mat.step, QImage::Format_Grayscale8);
 	m_pixmap = QPixmap::fromImage(image_final);
 
 //	ui.label->resize(m_pixmap.size());
 	ui.label->setPixmap(m_pixmap);
 	this->setWindowTitle(QString(QString::fromLocal8Bit(m_files[m_current_file_index].c_str())));
+}
+
+Mat PhotoCheckWindow::gethist(Mat &temp)
+{
+	Mat image_16UC1_raw;
+	image_16UC1_raw = Mat(temp.rows, temp.cols, CV_16UC1, temp.data);
+
+	/// 设定bin数目
+	int histSize = 0x0FFF;
+
+	/// 设定取值范围 ( R,G,B) )
+	float range[] = { 0, 0x0FFF };
+	const float* histRange = { range };
+
+	bool uniform = true; bool accumulate = false;
+	Mat hist;
+	calcHist(&image_16UC1_raw, 1, 0, Mat(), hist, 1, &histSize, &histRange, uniform, accumulate);
+
+	Mat final;
+	final.create(image_16UC1_raw.rows, image_16UC1_raw.cols, CV_8UC1);
+	USHORT *ptr = image_16UC1_raw.ptr<USHORT>();
+	UCHAR *ptr_dst = final.ptr<UCHAR>();
+
+	for (int i = 0; i < image_16UC1_raw.total(); i++)
+	{
+		ptr_dst[i] = min(sqrt( ptr[i] * 65535.0 / 4095.0),255.0);
+	}
+	return final;
 }
 
 void PhotoCheckWindow::setPhotoSize(int h,int w)
@@ -110,5 +169,16 @@ Mat PhotoCheckWindow::getMatFromFile(cv::String path)
 void PhotoCheckWindow::setFileList(std::vector<std::string> &files)
 {
 	m_files = files;
-	m_max_file_index = files.size();
+	m_max_file_index = files.size()-1;
+}
+
+void PhotoCheckWindow::updateMousePos(int x,int y)
+{
+	ui.lineEdit_x->setText(QString::number(x));
+	ui.lineEdit_y->setText (QString::number(y));
+}
+
+String PhotoCheckWindow::getCurrentFilePath()
+{
+	return m_files[m_current_file_index];
 }

@@ -9,7 +9,9 @@ MyWindow::MyWindow(QWidget *parent)
 
 	m_mydevice = new ImagingSpectrometers;
 	m_config_dialog = new ConfigDialog;
-	m_photocheck_window = new PhotoCheckWindow;
+	m_photocheck_window = new PhotoCheckWindow(this);
+	m_specAnalysis_window = new SpectralAnalysis(m_photocheck_window);
+	m_thread_curves = new MySpecThread(m_mydevice);
 
 	m_mydevice->getMainWindow(this);//获取主窗口指针
 
@@ -54,6 +56,7 @@ MyWindow::MyWindow(QWidget *parent)
 	//自定义的设置窗口相关信号
 	connect(m_config_dialog->ui.pushButton_accept, SIGNAL(clicked()), this, SLOT(setConfig()));
 	connect(m_photocheck_window->ui.pushButton_back, SIGNAL(clicked()), this, SLOT(closePhotoCheckWindow()));
+	connect(m_photocheck_window->ui.label, SIGNAL(mousePress(int, int)), this, SLOT(setCurvesMat(int, int)));
 
 	initializeUI();//此处设置控件最初状态
 	initializePath();//创建相关路径
@@ -69,6 +72,11 @@ MyWindow::~MyWindow()
 		m_mydevice->setWorkFlag(false);
 		m_mydevice->setCloseFlag(true);
 		m_thread.wait();
+	}
+	if (m_thread_curves->isRunning())
+	{
+		m_thread_curves->quit();
+		m_thread_curves->wait();
 	}
 	delete m_mydevice;
 	delete m_config_dialog;
@@ -522,7 +530,7 @@ void MyWindow::whiteboard()
 		}
 		
 		////这里应该设置防止此时按下cancel按钮
-
+		process.setCancelButton(0);
 		// 写config文件
 		cameraParW[3 + bandcount * 3] = '\0';
 		if (!m_mydevice->writeConfigFile(correctionPath, cameraParW, 3 + bandcount * 3))
@@ -636,26 +644,28 @@ void MyWindow::photo()
 				}
 				else{
 					process.setValue(len);
+				}			
+				if (process.wasCanceled())
+				{
+					QMessageBox::warning(this, QStringLiteral("正在取消"), QStringLiteral("已保存的图片将不会删除"));
+					m_mydevice->setResolution(640, 480);
+					m_mydevice->continueDevice();
+					return;
 				}
 			}
 
-			if (process.wasCanceled())
-			{
-				QMessageBox::warning(this, QStringLiteral("正在取消"), QStringLiteral("已保存的图片将不会删除"));
-				m_mydevice->setResolution(640, 480);
-				m_mydevice->continueDevice();
-				return;
-			}
+
 		}
 
 		////这里应该设置防止此时按下cancel按钮
-
+		process.setCancelButton(0);
 		//control(0x30, 0x2A, 0x00, 0x09);
 
 		// 设置分辨率 640*480
 		m_mydevice->setResolution(640, 480);
 		process.setValue(LCTF_range + 1);
 	}
+	m_thread_curves->start();
 	m_mydevice->continueDevice();
 	QMessageBox::about(this, QStringLiteral("提示"), QStringLiteral("拍照完成"));
 }
@@ -890,7 +900,9 @@ void MyWindow::setAnalogGain()
 void MyWindow::showConfigDialog()
 {
 	String temp = m_mydevice->getCustomPath();
+	String temp2 = m_mydevice->getPhotoPath();
 	int temp_int = m_mydevice->getPhotoTimes();
+	m_config_dialog->ui.label_photoPath->setText(temp2.c_str());
 	m_config_dialog->ui.lineEdit_path->setText(temp.c_str());
 	m_config_dialog->ui.lineEdit_times->setText(QString::number(temp_int));
 	m_config_dialog->show();
@@ -917,17 +929,15 @@ void MyWindow::showPhotoCheckWindow()
 	std::string path;
 	std::vector<std::string> files;
 
-	path = "C:/ImagingSpectrometers/photoFiles/";
+	path = path = m_mydevice->getPhotoPath().c_str();
 	int photo_height = m_mydevice->getPhotoHeight();
 	int photo_width = m_mydevice->getPhotoWidth();
 	////获取该路径下的所有文件  
 
-	//m_mydevice->pauseDevice();
+	m_mydevice->pauseDevice();
 	m_mydevice->getFileList(path, files);
 	m_photocheck_window->setFileList(files);
 	m_photocheck_window->setPhotoSize(photo_height, photo_width);
-	
-	
 
 	m_photocheck_window->show();
 
@@ -935,5 +945,48 @@ void MyWindow::showPhotoCheckWindow()
 
 void MyWindow::closePhotoCheckWindow()
 {
-	//m_mydevice->continueDevice();
+	m_mydevice->continueDevice();
+}
+
+void MyWindow::setCurvesMat(int x, int y)
+{
+	if (m_thread_curves->isRunning())
+	{
+		QMessageBox::about(this, QStringLiteral("提示"), QStringLiteral("正在进行数据处理！"));
+		return;
+	}
+	else if (/*!m_mydevice->readCurvesMat()&&*/m_mydevice->m_curvesMat.empty())
+	{
+		m_thread_curves->start();
+		QMessageBox::about(this, QStringLiteral("提示"), QStringLiteral("正在生成数据！"));
+		return;
+	}
+	//检测点击的是否是连拍图像
+	String str = m_photocheck_window->getCurrentFilePath();
+	const char* sub_str = m_mydevice->getCustomPath().c_str();
+	if (strstr(str.c_str(), sub_str) == NULL)
+	{
+		return;
+	}
+
+	int row_length = m_mydevice->getPhotoWidth();
+	Mat temp_row = m_mydevice->m_curvesMat.row(y*row_length+x);
+
+	m_specAnalysis_window->ui.diagram->transMat(temp_row,m_mydevice->m_wavelengthMat);
+	m_specAnalysis_window->ui.diagram->setPaintEnable(true);
+	m_specAnalysis_window->ui.diagram->refresh();
+
+	m_specAnalysis_window->show();
+
+	return;
+
+	////FOR DEBUG
+	//Mat temp1, temp2;
+
+	//m_specAnalysis_window->ui.diagram->transMat(temp1, temp2);
+	//m_specAnalysis_window->ui.diagram->setPaintEnable(true);
+	//m_specAnalysis_window->ui.diagram->refresh();
+
+	//m_specAnalysis_window->show();
+	//return;
 }
