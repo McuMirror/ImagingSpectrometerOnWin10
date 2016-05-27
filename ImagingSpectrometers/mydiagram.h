@@ -1,6 +1,8 @@
 #ifndef MYDIAGRAM_H
 #define MYDIAGRAM_H
 
+#include "CONFIG.h"
+
 #include <QWidget>
 #include <QPainter>
 #include <QMouseEvent>

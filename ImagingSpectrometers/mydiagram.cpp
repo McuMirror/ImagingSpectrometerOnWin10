@@ -8,7 +8,11 @@ MyDiagram::MyDiagram(QWidget *parent)
 	y_offset = 0;
 	deltaX = 0.0;
 	deltaY = 0.0;
+#ifdef __VISIBLE__
+	x_count = 32;//此处可变
+#else
 	x_count = 45;
+#endif
 
 	m_path = new QPainterPath;
 	isPaintEnable = false;
@@ -147,6 +151,7 @@ void MyDiagram::refresh()
 	delete m_path;
 	m_path = new QPainterPath;
 	points.clear();//非常重要，清空上幅图像的点集
+	x_count = m_data.cols - 1;
 
 	QPoint temp_point;
 	for (int i = 0; i < m_data.cols; i++)

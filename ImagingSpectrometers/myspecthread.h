@@ -16,6 +16,8 @@ public:
 	MySpecThread(QObject *parent=0);
 	MySpecThread(ImagingSpectrometers *p);
 	~MySpecThread();
+signals:
+	void processUpdate(int process);
 
 protected:
 	void run();

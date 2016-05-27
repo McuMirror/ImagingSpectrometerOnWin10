@@ -72,7 +72,7 @@
          <bool>true</bool>
         </property>
         <property name="text">
-         <string>TextLabel</string>
+         <string/>
         </property>
        </widget>
       </item>
@@ -191,7 +191,7 @@
     </item>
    </layout>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -239,6 +239,28 @@
      </widget>
     </item>
    </layout>
+  </widget>
+  <widget class="QLabel" name="label_state">
+   <property name="geometry">
+    <rect>
+     <x>1140</x>
+     <y>980</y>
+     <width>161</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>宋体</family>
+     <pointsize>14</pointsize>
+    </font>
+   </property>
+   <property name="text">
+    <string>闲置</string>
+   </property>
+   <property name="textFormat">
+    <enum>Qt::PlainText</enum>
+   </property>
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>

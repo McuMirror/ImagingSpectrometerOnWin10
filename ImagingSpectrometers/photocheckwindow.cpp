@@ -1,6 +1,5 @@
 #include "photocheckwindow.h"
 
-
 PhotoCheckWindow::PhotoCheckWindow(QWidget *parent)
 	: QWidget(parent),
 	m_files(NULL),
@@ -60,6 +59,30 @@ void PhotoCheckWindow::checkForward()
 	QMetaObject::invokeMethod(this, "updateImage", Qt::QueuedConnection);
 }
 
+#ifdef __IN8BITS__
+void PhotoCheckWindow::updateImage()
+{
+	if (m_files.empty())
+	{
+		return;
+	}
+	Mat temp;
+	temp = getMatFromFile(m_files[m_current_file_index]);
+
+	//Mat hist_mat;
+	//hist_mat = gethist(temp);
+	Mat temp2;
+	temp.convertTo(temp2, CV_8UC1/*, 16.00366*/);
+
+	QImage image_final = QImage(temp2.data, temp2.cols, temp2.rows, temp2.step, QImage::Format_Grayscale8);
+	//QImage image_final = QImage(hist_mat.data, hist_mat.cols, hist_mat.rows, hist_mat.step, QImage::Format_Grayscale8);
+	m_pixmap = QPixmap::fromImage(image_final);
+
+//	ui.label->resize(m_pixmap.size());
+	ui.label->setPixmap(m_pixmap);
+	this->setWindowTitle(QString(QString::fromLocal8Bit(m_files[m_current_file_index].c_str())));
+}
+#else
 void PhotoCheckWindow::updateImage()
 {
 	Mat temp;
@@ -81,10 +104,11 @@ void PhotoCheckWindow::updateImage()
 	//QImage image_final = QImage(hist_mat.data, hist_mat.cols, hist_mat.rows, hist_mat.step, QImage::Format_Grayscale8);
 	m_pixmap = QPixmap::fromImage(image_final);
 
-//	ui.label->resize(m_pixmap.size());
+	//	ui.label->resize(m_pixmap.size());
 	ui.label->setPixmap(m_pixmap);
 	this->setWindowTitle(QString(QString::fromLocal8Bit(m_files[m_current_file_index].c_str())));
 }
+#endif
 
 Mat PhotoCheckWindow::gethist(Mat &temp)
 {
@@ -120,9 +144,56 @@ void PhotoCheckWindow::setPhotoSize(int h,int w)
 	m_photo_width = w;
 }
 
+#ifdef __IN8BITS__
 Mat PhotoCheckWindow::getMatFromFile(cv::String path)
 {
 	Mat output = imread("error.bmp",CV_LOAD_IMAGE_GRAYSCALE);
+	//Mat output(m_photo_height, m_photo_width, CV_16UC1, 0);
+	output.convertTo(output, CV_8UC1/*, 16.058823*/);
+	cv::String type = path.substr(path.find_last_of('.'));
+
+	if (type == ".bmp")
+	{
+		output = imread(path, CV_LOAD_IMAGE_ANYDEPTH | CV_LOAD_IMAGE_ANYCOLOR);
+		output.convertTo(output, CV_8UC1);
+	}
+	else if (type == ".bin")
+	{
+		setPhotoSize(960,1280);
+		std::ifstream ifs(path, std::ios::in | std::ios::binary);
+		long len = m_photo_height * m_photo_width;
+		byte *temp;
+		temp = new UCHAR[m_photo_height * m_photo_width];
+		ZeroMemory(temp, m_photo_height * m_photo_width);
+		ifs.read((char*)temp, len);
+		ifs.close();
+		Mat t = Mat(m_photo_height, m_photo_width, CV_8UC1, temp);
+		t.copyTo(output);
+		delete[] temp;
+		temp = nullptr;
+	}
+	else if (type == ".hex")
+	{
+		setPhotoSize(640, 480);
+		std::ifstream ifs(path, std::ios::in | std::ios::binary);
+		long len = m_photo_height * m_photo_width;
+		byte *temp;
+		temp = new UCHAR[m_photo_height * m_photo_width];
+		ZeroMemory(temp, m_photo_height * m_photo_width);
+		ifs.read((char*)temp, len);
+		ifs.close();
+		Mat t = Mat(m_photo_height, m_photo_width, CV_8UC1, temp);
+		t.copyTo(output);
+		delete[] temp;
+		temp = nullptr;
+	}
+
+	return output;
+}
+#else
+Mat PhotoCheckWindow::getMatFromFile(cv::String path)
+{
+	Mat output = imread("error.bmp", CV_LOAD_IMAGE_GRAYSCALE);
 	//Mat output(m_photo_height, m_photo_width, CV_16UC1, 0);
 	output.convertTo(output, CV_16UC1/*, 16.058823*/);
 	cv::String type = path.substr(path.find_last_of('.'));
@@ -134,7 +205,7 @@ Mat PhotoCheckWindow::getMatFromFile(cv::String path)
 	}
 	else if (type == ".bin")
 	{
-		setPhotoSize(960,1280);
+		setPhotoSize(960, 1280);
 		std::ifstream ifs(path, std::ios::in | std::ios::binary);
 		long len = m_photo_height * m_photo_width * 2;
 		byte *temp;
@@ -165,6 +236,7 @@ Mat PhotoCheckWindow::getMatFromFile(cv::String path)
 
 	return output;
 }
+#endif
 
 void PhotoCheckWindow::setFileList(std::vector<std::string> &files)
 {

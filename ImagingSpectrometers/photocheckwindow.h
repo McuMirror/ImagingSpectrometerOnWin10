@@ -1,6 +1,8 @@
 #ifndef PHOTOCHECKWINDOW_H
 #define PHOTOCHECKWINDOW_H
 
+#include "CONFIG.h"
+
 #include <QWidget>
 #include "ui_photocheckwindow.h"
 

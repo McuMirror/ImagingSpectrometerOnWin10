@@ -8,7 +8,7 @@ MyWindow::MyWindow(QWidget *parent)
 	//this->setWindowState(Qt::WindowMaximized);
 
 	m_mydevice = new ImagingSpectrometers;
-	m_config_dialog = new ConfigDialog;
+	m_config_dialog = new ConfigDialog(this);
 	m_photocheck_window = new PhotoCheckWindow(this);
 	m_specAnalysis_window = new SpectralAnalysis(m_photocheck_window);
 	m_thread_curves = new MySpecThread(m_mydevice);
@@ -55,8 +55,10 @@ MyWindow::MyWindow(QWidget *parent)
 
 	//自定义的设置窗口相关信号
 	connect(m_config_dialog->ui.pushButton_accept, SIGNAL(clicked()), this, SLOT(setConfig()));
+	connect(m_config_dialog->ui.pushButton_path, SIGNAL(clicked()), this, SLOT(setConfigPath()));
 	connect(m_photocheck_window->ui.pushButton_back, SIGNAL(clicked()), this, SLOT(closePhotoCheckWindow()));
 	connect(m_photocheck_window->ui.label, SIGNAL(mousePress(int, int)), this, SLOT(setCurvesMat(int, int)));
+	connect(m_thread_curves, SIGNAL(processUpdate(int)), this, SLOT(setPrepareProcess(int)));
 
 	initializeUI();//此处设置控件最初状态
 	initializePath();//创建相关路径
@@ -97,6 +99,14 @@ void MyWindow::initializeUI()
 void MyWindow::initializePath()
 {
 	FILE *fp,*fc;
+	/*TCHAR szPath[MAX_PATH];
+	GetModuleFileName(NULL, szPath, MAX_PATH);
+	int iLen = 2 * wcslen(szPath);    
+	char* fromTCHAR = new char[iLen + 1];
+	wcstombs(fromTCHAR, szPath, iLen + 1);
+	String current_path(fromTCHAR);
+	String current_path_sub = current_path.substr(0, current_path.find_last_of('\\'));
+	sys_path = current_path_sub;*/
 	String correctionPath = m_mydevice->getCorrectionPath();
 	String photoPath = m_mydevice->getPhotoPath();
 	String systemPath = m_mydevice->getSystemPath();
@@ -363,6 +373,8 @@ void MyWindow::whiteboard()
 		//校正部分
 		//拍大分辨率照片可以降速，防止图像出现分块
 		//control(0x30, 0x2A, 0x00, 0x0C);
+		int data_height = m_mydevice->getDataHeight();
+		int data_width = m_mydevice->getDataWidth();
 		int photo_height = m_mydevice->getPhotoHeight();
 		int photo_width = m_mydevice->getPhotoWidth();
 		int WavelengthMax = m_mydevice->getWavelengthMax();
@@ -393,8 +405,14 @@ void MyWindow::whiteboard()
 		int digitalGain = 0;
 		int analogGain = 0;
 		int count;
-		int thresholdLower = 0xF00;//12位需要修改阈值
+
+#ifdef __IN8BITS__
+		int thresholdLower = 240;//12位需要修改阈值
+		int thresholdUpper = 252;
+#else
+		int thresholdLower = 0xF00;
 		int thresholdUpper = 0xFC0;
+#endif
 		int pixelValueMax = 0;
 		int sum;
 		int step = 10;
@@ -431,7 +449,7 @@ void MyWindow::whiteboard()
 				while (count < photo_data_size - step){
 					sum = 0;
 					for (int i = 0; i < step; ++i) {
-						sum += (data_photo_processing.data[count + i] & 0x0FFF);//12位需要修改
+						sum += (data_photo_processing.data[count + i] );//12位需要修改
 					}
 					if (sum / step > thresholdUpper) {
 						isParameterAvailable = false;
@@ -505,7 +523,11 @@ void MyWindow::whiteboard()
 			char c[5] = {0};
 			itoa(w, c, 10);
 			String t(c);
+#ifdef __IN8BITS__
+			String path = correctionPath + "/" + t + ".bmp";
+#else
 			String path = correctionPath + "/" + t + ".exr";
+#endif
 			cv::imwrite(path, data_photo_processing);
 
 			cameraParW[cameraParIndex++] = (byte)exposureTime;
@@ -523,7 +545,7 @@ void MyWindow::whiteboard()
 			if (process.wasCanceled())
 			{
 				QMessageBox::warning(this, QStringLiteral("正在取消"), QStringLiteral("已保存的图片将不会删除"));
-				m_mydevice->setResolution(640, 480);
+				m_mydevice->setResolution(data_width, data_height);
 				m_mydevice->continueDevice();
 				return;
 			}
@@ -543,7 +565,7 @@ void MyWindow::whiteboard()
 		// 设置分辨率 640*480
 //		delete[] cameraParW;不用销毁吗？
 //		cameraParW = nullptr;
-		m_mydevice->setResolution(640, 480);
+		m_mydevice->setResolution(data_width, data_height);
 		process.setValue(LCTF_range+1);
 		QMessageBox::about(this, QStringLiteral("提示"), QStringLiteral("白板校正完成"));
 	}
@@ -579,6 +601,8 @@ void MyWindow::photo()
 		m_mydevice->readConfigFile(correctionPath, cameraParR);
 		int cameraParIndex = 2;
 
+		int data_height = m_mydevice->getDataHeight();
+		int data_width = m_mydevice->getDataWidth();
 		int photo_height = m_mydevice->getPhotoHeight();
 		int photo_width = m_mydevice->getPhotoWidth();
 		int WavelengthMax = m_mydevice->getWavelengthMax();
@@ -634,7 +658,11 @@ void MyWindow::photo()
 					String t(c);
 					//char ic[1] = { 0 };
 					//itoa(i, ic, 10);
+#ifdef __IN8BITS__
+					cv::String name = photoPath + t + ".bmp";
+#else
 					cv::String name = photoPath + t + ".exr";
+#endif
 					cv::imwrite(name, data_photo_processing);
 	/*			}*/
 				len += LCTF_Gap;			
@@ -648,21 +676,17 @@ void MyWindow::photo()
 				if (process.wasCanceled())
 				{
 					QMessageBox::warning(this, QStringLiteral("正在取消"), QStringLiteral("已保存的图片将不会删除"));
-					m_mydevice->setResolution(640, 480);
+					m_mydevice->setResolution(data_width, data_height);
 					m_mydevice->continueDevice();
 					return;
 				}
 			}
-
-
 		}
-
 		////这里应该设置防止此时按下cancel按钮
 		process.setCancelButton(0);
 		//control(0x30, 0x2A, 0x00, 0x09);
-
 		// 设置分辨率 640*480
-		m_mydevice->setResolution(640, 480);
+		m_mydevice->setResolution(data_width, data_height);
 		process.setValue(LCTF_range + 1);
 	}
 	m_thread_curves->start();
@@ -679,6 +703,8 @@ void MyWindow::photoOnce()
 	}
 	int PHOTO_TIMES = m_mydevice->getPhotoTimes();
 	Mat data_temp;
+	int data_height = m_mydevice->getDataHeight();
+	int data_width = m_mydevice->getDataWidth();
 	int photo_height = m_mydevice->getPhotoHeight();
 	int photo_width = m_mydevice->getPhotoWidth();
 
@@ -700,11 +726,15 @@ void MyWindow::photoOnce()
 		char a[1] = {0};
 		itoa(i,a,10);
 		String num = a;
+#ifdef __IN8BITS__
+		String nameFull = photoPath + '/' + name + '(' + num + ')' + ".bmp";
+#else
 		String nameFull = photoPath + '/' + name + '(' + num + ')' + ".exr";
+#endif
 		cv::imwrite(nameFull, data_temp);
 	}
 
-	m_mydevice->setResolution(640, 480);
+	m_mydevice->setResolution(data_width, data_height);
 	m_mydevice->continueDevice();
 }
 
@@ -899,10 +929,10 @@ void MyWindow::setAnalogGain()
 
 void MyWindow::showConfigDialog()
 {
-	String temp = m_mydevice->getCustomPath();
-	String temp2 = m_mydevice->getPhotoPath();
+	String temp = m_mydevice->getSystemPath();
+	String temp2 = m_mydevice->getCustomPath();
 	int temp_int = m_mydevice->getPhotoTimes();
-	m_config_dialog->ui.label_photoPath->setText(temp2.c_str());
+	m_config_dialog->ui.lineEdit_customPath->setText(temp2.c_str());
 	m_config_dialog->ui.lineEdit_path->setText(temp.c_str());
 	m_config_dialog->ui.lineEdit_times->setText(QString::number(temp_int));
 	m_config_dialog->show();
@@ -910,10 +940,16 @@ void MyWindow::showConfigDialog()
 
 void MyWindow::setConfig()
 {
+	QString customPath = m_config_dialog->ui.lineEdit_customPath->text();
+	if (!customPath.isEmpty())
+	{
+		m_mydevice->setCustomPath(customPath.toStdString());
+		initializePath();
+	}
 	QString photoPath = m_config_dialog->ui.lineEdit_path->text();
 	if (!photoPath.isEmpty())
 	{
-		m_mydevice->setCustomPath(photoPath.toStdString());
+		m_mydevice->setSystemPath(photoPath.toStdString());
 		initializePath();
 	}
 	QString photoTimes = m_config_dialog->ui.lineEdit_times->text();
@@ -989,4 +1025,34 @@ void MyWindow::setCurvesMat(int x, int y)
 
 	//m_specAnalysis_window->show();
 	//return;
+}
+
+void MyWindow::setPrepareProcess(int process)
+{
+	QString num = QString::number(process);
+	QString full = QStringLiteral("当前进度：") + num + QStringLiteral("%");
+	if (process == 100)
+	{
+		m_photocheck_window->ui.label_state->setText(QStringLiteral("就绪"));
+	}
+	else
+	{
+		m_photocheck_window->ui.label_state->setText(full);
+	}
+
+}
+
+void MyWindow::setConfigPath()
+{
+	QString filename = QFileDialog::getExistingDirectory(this,
+		QStringLiteral("选择路径"), ""); //选择路径  
+	if (filename.isEmpty())
+	{
+		return;
+	}
+	else
+	{
+		m_config_dialog->ui.lineEdit_path->setText(filename);
+		return;
+	}
 }

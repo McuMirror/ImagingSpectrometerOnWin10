@@ -15,9 +15,15 @@ ImagingSpectrometers::ImagingSpectrometers(QObject *parent)
 	m_image_width(m_data_width),
 	m_image_height(m_data_height),
 	m_LCTF_gap(10),
-	m_system_path("C:/ImagingSpectrometers/"),
+#ifdef __VISIBLE__
+	m_system_path("C:/ImagingSpectrometers_vis"),
+	m_correction_path("C:/ImagingSpectrometers_vis/correctionFiles/"),
+	m_photo_path("C:/ImagingSpectrometers_vis/photoFiles/"),
+#else
+	m_system_path("C:/ImagingSpectrometers"),
 	m_correction_path("C:/ImagingSpectrometers/correctionFiles/"),
 	m_photo_path("C:/ImagingSpectrometers/photoFiles/"),
+#endif
 	m_custom_path("0001"),
 	m_photo_times(1)
 {
@@ -90,23 +96,22 @@ bool ImagingSpectrometers::openDevice()
 	//配置端点2
 	UCHAR ept_addr = 0x82;
 	m_ept_bulk_in = m_usb_device->EndPointOf(ept_addr);
-
+#ifdef __IN8BITS__
+	ULONG image_data_size_8bit = m_image_data_size;
+	ULONG image_data_size_large = m_photo_width * m_photo_height;
+	m_ept_bulk_in->SetXferSize(image_data_size_8bit);//非常重要，影响图像质量和帧率
+#else
 	ULONG image_data_size_12bit = m_image_data_size * 2;
-	ULONG image_data_size_large = 1280 * 960 * 2;
-//	ULONG image_data_size_12bit = m_image_data_size;
-
-	m_ept_bulk_in->SetXferSize(image_data_size_12bit);//非常重要，影响图像质量和帧率
-
-//	m_ept_control->ReqCode = 0xA2;
-//	m_ept_control->XferData(buf, len);
-
+	ULONG image_data_size_large = m_photo_width * m_photo_height * 2;
+	m_ept_bulk_in->SetXferSize(image_data_size_12bit);
+#endif
 	m_image_data = new UCHAR[image_data_size_large];
 	ZeroMemory(m_image_data, image_data_size_large);
 
 	m_photo_data = new UCHAR[image_data_size_large];
 	ZeroMemory(m_photo_data, image_data_size_large);
 
-	setResolution(640, 480);
+	setResolution(m_data_width, m_data_height);
 
 	return true;
 }
@@ -149,9 +154,11 @@ void ImagingSpectrometers::continueDevice()
 //接收USB设备传输的数据
 void ImagingSpectrometers::getData()
 {
-
-	LONG image_data_size_12bit = m_image_data_size * 2;
-//	LONG image_data_size_12bit = m_image_data_size;
+#ifdef __IN8BITS__
+	LONG image_data_size = m_image_data_size;
+#else
+	LONG image_data_size = m_image_data_size * 2;
+#endif
 	UCHAR buf[2] = { 0, 0 };
 	LONG len = 0;
 
@@ -162,13 +169,13 @@ void ImagingSpectrometers::getData()
 	in_overlap.hEvent = CreateEvent(NULL, false, false, L"CYUSB_IN");
 	bool flag_data_received;
 
-	UCHAR *in_context = m_ept_bulk_in->BeginDataXfer(m_image_data, image_data_size_12bit, &in_overlap);
+	UCHAR *in_context = m_ept_bulk_in->BeginDataXfer(m_image_data, image_data_size, &in_overlap);
 	if (!m_ept_bulk_in->WaitForXfer(&in_overlap, 200))
 	{
 		m_ept_bulk_in->Abort();
 		flag_data_received = false;
 	}
-	else if (!m_ept_bulk_in->FinishDataXfer(m_image_data, image_data_size_12bit, &in_overlap, in_context))
+	else if (!m_ept_bulk_in->FinishDataXfer(m_image_data, image_data_size, &in_overlap, in_context))
 	{
 		m_ept_bulk_in->Abort();
 		flag_data_received = false;
@@ -209,6 +216,25 @@ void ImagingSpectrometers::getData()
 //
 //}
 
+#ifdef __IN8BITS__
+void ImagingSpectrometers::getImage()
+{
+
+	//	getImage_hist();
+
+	Mat image_8UC1_raw;
+	image_8UC1_raw = Mat(m_image_height, m_image_width, CV_8UC1, m_image_data);
+
+	Mat image_tmp;
+	cvtColor(image_8UC1_raw, image_tmp, CV_GRAY2RGB);//单通道变为3通道
+
+	Mat image_show;
+	image_show = image_tmp.clone();
+	QImage image_final = QImage(image_show.data, image_show.cols, image_show.rows, image_show.step, QImage::Format_RGB888);
+	m_pixmap = QPixmap::fromImage(image_final);
+
+}
+#else
 void ImagingSpectrometers::getImage()
 {
 
@@ -217,14 +243,8 @@ void ImagingSpectrometers::getImage()
 	Mat image_16UC1_raw;
 	image_16UC1_raw = Mat(m_image_height, m_image_width, CV_16UC1, m_image_data);
 
-	double min, max;
-	minMaxIdx(image_16UC1_raw, &min, &max);
-
-	Mat image_16UC1_temp;
-	image_16UC1_raw.copyTo(image_16UC1_temp);
-
 	Mat image_8UC1_temp;
-	image_16UC1_temp.convertTo(image_8UC1_temp, CV_8U, 0.06227);
+	image_16UC1_raw.convertTo(image_8UC1_temp, CV_8U, 0.06227);
 
 	Mat image_tmp;
 	cvtColor(image_8UC1_temp, image_tmp, CV_GRAY2RGB);//单通道变为3通道
@@ -235,31 +255,7 @@ void ImagingSpectrometers::getImage()
 	m_pixmap = QPixmap::fromImage(image_final);
 
 }
-
-void ImagingSpectrometers::getImage_hist()
-{
-	Mat image_16UC1_raw;
-	image_16UC1_raw = Mat(m_image_height, m_image_width, CV_16UC1, m_image_data);
-
-	/// 设定bin数目
-	int histSize = 0x0FFF;
-
-	/// 设定取值范围 ( R,G,B) )
-	float range[] = { 0, 0x0FFF };
-	const float* histRange = { range };
-
-	bool uniform = true; bool accumulate = false;
-	Mat hist;
-	calcHist(&image_16UC1_raw, 1, 0, Mat(), hist, 1, &histSize, &histRange, uniform, accumulate);
-
-	normalize(hist, hist, 0, 255, NORM_MINMAX, -1, Mat());
-
-	//Mat image_show;
-	//image_show = image_tmp.clone();
-	//QImage image_final = QImage(image_show.data, image_show.cols, image_show.rows, image_show.step, QImage::Format_RGB888);
-	//m_pixmap = QPixmap::fromImage(image_final);
-
-}
+#endif
 
 //LCTF忙碌状态检测
 bool ImagingSpectrometers::isLCTFReady()
@@ -357,8 +353,13 @@ bool ImagingSpectrometers::getLCTFState()
 	//m_ept_control->XferData(commandbuf_re, len_re);
 
 	//Sleep(10000);
+#ifdef __VISIBLE__
+	int rangemax = 720;
+	int rangemin = 400;
+#else
 	int rangemax = 1100;
 	int rangemin = 650;
+#endif
 	if (rangemax < rangemin)
 		return false;
 	m_LCTF_max = rangemax;
@@ -403,6 +404,16 @@ int ImagingSpectrometers::getPhotoWidth()
 int ImagingSpectrometers::getPhotoHeight()
 {
 	return m_photo_height;
+}
+
+int ImagingSpectrometers::getDataHeight()
+{
+	return m_data_height;
+}
+
+int ImagingSpectrometers::getDataWidth()
+{
+	return m_data_width;
 }
 
 //对相机的控制
@@ -625,7 +636,11 @@ void ImagingSpectrometers::setResolution(int width, int height)
 
 Mat ImagingSpectrometers::takephoto()
 {
-	LONG photo_data_size_12bit = m_photo_data_size * 2;
+#ifdef __IN8BITS__
+	LONG photo_data_size = m_photo_data_size;
+#else
+	LONG photo_data_size = m_photo_data_size * 2;
+#endif
 	UCHAR buf[2] = { 0, 0 };
 	LONG len = 0;
 
@@ -636,13 +651,13 @@ Mat ImagingSpectrometers::takephoto()
 	in_overlap.hEvent = CreateEvent(NULL, false, false, L"CYUSB_IN");
 	bool flag_data_received;
 
-	UCHAR *in_context = m_ept_bulk_in->BeginDataXfer(m_photo_data, photo_data_size_12bit, &in_overlap);
+	UCHAR *in_context = m_ept_bulk_in->BeginDataXfer(m_photo_data, photo_data_size, &in_overlap);
 	if (!m_ept_bulk_in->WaitForXfer(&in_overlap, 10000))
 	{
 		m_ept_bulk_in->Abort();
 		flag_data_received = false;
 	}
-	else if (!m_ept_bulk_in->FinishDataXfer(m_photo_data, photo_data_size_12bit, &in_overlap, in_context))
+	else if (!m_ept_bulk_in->FinishDataXfer(m_photo_data, photo_data_size, &in_overlap, in_context))
 	{
 		m_ept_bulk_in->Abort();
 		flag_data_received = false;
@@ -652,6 +667,21 @@ Mat ImagingSpectrometers::takephoto()
 		flag_data_received = true;
 	}
 	CloseHandle(in_overlap.hEvent);
+#ifdef __IN8BITS__
+	if (flag_data_received)
+	{
+		Mat image_8UC1_raw;
+		image_8UC1_raw = Mat(m_photo_height, m_photo_width, CV_8UC1, m_photo_data);
+
+		Mat temp = image_8UC1_raw;
+		return temp;
+	}
+	else
+	{
+		Mat temp = Mat(m_photo_height, m_photo_width, CV_8UC1, Scalar::all(0));
+		return temp;
+	}
+#else
 	if (flag_data_received)
 	{
 		Mat image_16UC1_raw;
@@ -665,6 +695,7 @@ Mat ImagingSpectrometers::takephoto()
 		Mat temp = Mat(m_photo_height, m_photo_width, CV_16UC1, Scalar::all(0));
 		return temp;
 	}
+#endif
 }
 
 bool ImagingSpectrometers::writeConfigFile(String path, byte* config, int len)
@@ -716,6 +747,13 @@ String ImagingSpectrometers::getPhotoPath()
 	return m_photo_path;
 }
 
+void ImagingSpectrometers::setSystemPath(String path)
+{
+	m_system_path = path;
+	m_correction_path = path + "/correctionFiles/";
+	m_photo_path = path + "/photoFiles/";
+}
+
 String ImagingSpectrometers::getSystemPath()
 {
 	return m_system_path;
@@ -741,6 +779,33 @@ int ImagingSpectrometers::getPhotoTimes()
 	return m_photo_times;
 }
 
+#ifdef __IN8BITS__
+Mat ImagingSpectrometers::getMatFromFile(String path)
+{
+	Mat output(m_photo_height, m_photo_width, CV_8UC1, Scalar::all(0));
+	String type = path.substr(path.find_last_of('.'));
+	if (type == ".bmp")
+	{
+		output = imread(path, CV_LOAD_IMAGE_ANYDEPTH | CV_LOAD_IMAGE_ANYCOLOR);
+		output.convertTo(output, CV_8UC1);
+	}
+	else if (type == ".bin")
+	{
+		std::ifstream ifs(path, std::ios::in | std::ios::binary);
+		long len = m_photo_data_size;
+		byte *temp;
+		temp = new UCHAR[m_photo_data_size];
+		ZeroMemory(temp,m_photo_data_size);
+		ifs.read((char*)temp, len);
+		ifs.close();
+		Mat t = Mat(m_photo_height, m_photo_width, CV_8UC1, temp);
+		t.copyTo(output);
+		delete[] temp;
+		temp = nullptr;
+	}
+	return output;
+}
+#else
 Mat ImagingSpectrometers::getMatFromFile(String path)
 {
 	Mat output(m_photo_height, m_photo_width, CV_16UC1, Scalar::all(0));
@@ -755,8 +820,8 @@ Mat ImagingSpectrometers::getMatFromFile(String path)
 		std::ifstream ifs(path, std::ios::in | std::ios::binary);
 		long len = m_photo_data_size * 2;
 		byte *temp;
-		temp = new UCHAR[m_photo_data_size*2];
-		ZeroMemory(temp,m_photo_data_size*2);
+		temp = new UCHAR[m_photo_data_size * 2];
+		ZeroMemory(temp, m_photo_data_size * 2);
 		ifs.read((char*)temp, len);
 		ifs.close();
 		Mat t = Mat(m_photo_height, m_photo_width, CV_16UC1, temp);
@@ -764,10 +829,9 @@ Mat ImagingSpectrometers::getMatFromFile(String path)
 		delete[] temp;
 		temp = nullptr;
 	}
-
 	return output;
-		
 }
+#endif
 
 void ImagingSpectrometers::getFileList(std::string path, std::vector<std::string>& files)
 {
@@ -796,46 +860,46 @@ void ImagingSpectrometers::getFileList(std::string path, std::vector<std::string
 	}
 }
 
-void ImagingSpectrometers::getCurvesMat()
-{
-	//判断文件夹是否为空
-	std::vector<std::string> correctionMatVector;
-	std::vector<std::string> photoMatVector;
-	getFileList(m_correction_path, correctionMatVector);
-	getFileList(m_photo_path + m_custom_path + "/", photoMatVector);
-	int size = correctionMatVector.size() - 1;
-	Mat temp = Mat(2, size, CV_8UC1, 0);
-	if (size != photoMatVector.size())
-	{
-		return;
-	}
-
-	Mat allWavelengthMat = Mat::zeros(1, size, CV_16UC1);
-	Mat allCurvesMat = Mat::zeros(m_photo_data_size,size,CV_32FC1);
-	Mat temp_c,temp_p,temp_curves,temp_oneCol;
-	std::string str = "//";
-
-	for (int i = 0; i < size; i++)
-	{
-		temp_c = getMatFromFile(correctionMatVector[i]);
-		temp_c.convertTo(temp_c, CV_32F);
-		temp_p = getMatFromFile(photoMatVector[i]);
-		temp_p.convertTo(temp_p, CV_32F);
-		divide(temp_c, temp_p, temp_curves);
-		temp_oneCol = temp_curves.reshape(0, m_photo_data_size);
-		temp_oneCol.copyTo(allCurvesMat.col(i));	
-
-		int n = correctionMatVector[i].find_last_of(str);
-		std::string str2 = correctionMatVector[i].substr(n+2);
-		int t = str2.find(".");
-		QString str3 = QString::fromStdString(str2.substr(0,t));
-		allWavelengthMat.at<USHORT>(i) = str3.toInt();
-	}
-	m_curvesMat = allCurvesMat;
-	m_wavelengthMat = allWavelengthMat;
-	//writeCurvesMat();
-	return;
-}
+//void ImagingSpectrometers::getCurvesMat()
+//{
+//	//判断文件夹是否为空
+//	std::vector<std::string> correctionMatVector;
+//	std::vector<std::string> photoMatVector;
+//	getFileList(m_correction_path, correctionMatVector);
+//	getFileList(m_photo_path + m_custom_path + "/", photoMatVector);
+//	int size = correctionMatVector.size() - 1;
+//	Mat temp = Mat(2, size, CV_8UC1, 0);
+//	if (size != photoMatVector.size())
+//	{
+//		return;
+//	}
+//
+//	Mat allWavelengthMat = Mat::zeros(1, size, CV_16UC1);
+//	Mat allCurvesMat = Mat::zeros(m_photo_data_size,size,CV_32FC1);
+//	Mat temp_c,temp_p,temp_curves,temp_oneCol;
+//	std::string str = "//";
+//
+//	for (int i = 0; i < size; i++)
+//	{
+//		temp_c = getMatFromFile(correctionMatVector[i]);
+//		temp_c.convertTo(temp_c, CV_32F);
+//		temp_p = getMatFromFile(photoMatVector[i]);
+//		temp_p.convertTo(temp_p, CV_32F);
+//		divide(temp_c, temp_p, temp_curves);
+//		temp_oneCol = temp_curves.reshape(0, m_photo_data_size);
+//		temp_oneCol.copyTo(allCurvesMat.col(i));	
+//
+//		int n = correctionMatVector[i].find_last_of(str);
+//		std::string str2 = correctionMatVector[i].substr(n+2);
+//		int t = str2.find(".");
+//		QString str3 = QString::fromStdString(str2.substr(0,t));
+//		allWavelengthMat.at<USHORT>(i) = str3.toInt();
+//	}
+//	m_curvesMat = allCurvesMat;
+//	m_wavelengthMat = allWavelengthMat;
+//	//writeCurvesMat();
+//	return;
+//}
 
 //bool ImagingSpectrometers::writeCurvesMat()
 //{

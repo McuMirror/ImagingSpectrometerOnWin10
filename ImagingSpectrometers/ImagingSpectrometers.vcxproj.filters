@@ -171,5 +171,8 @@
     <ClInclude Include="GeneratedFiles\ui_spectralanalysis.h">
       <Filter>Generated Files</Filter>
     </ClInclude>
+    <ClInclude Include="CONFIG.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

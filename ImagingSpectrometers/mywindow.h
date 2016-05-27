@@ -1,6 +1,8 @@
 #ifndef MYWINDOW_H
 #define MYWINDOW_H
 
+#include "CONFIG.h"
+
 #include <QtWidgets/QMainWindow>
 #include <direct.h>
 
@@ -56,6 +58,8 @@ public slots:
 
 	void showPhotoCheckWindow();
 	void closePhotoCheckWindow();
+	void setConfigPath();
+	void setPrepareProcess(int process);
 
 
 private:

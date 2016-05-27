@@ -5,12 +5,12 @@ ConfigDialog::ConfigDialog(QWidget *parent)
 {
 	ui.setupUi(this);
 
-	//Qt::WindowFlags flag = 0;
-	//flag = Qt::Window;
-	//flag |= Qt::WindowCloseButtonHint;
+	Qt::WindowFlags flag = 0;
+	flag = Qt::Window;
+	flag |= Qt::WindowCloseButtonHint;
 
-	//this->setWindowFlags(flag);
-	//this->setWindowModality(Qt::WindowModal);//此处的模态设置无效，需要指定parent
+	this->setWindowFlags(flag);
+	this->setWindowModality(Qt::WindowModal);//此处的模态设置无效，需要指定parent
 
 	connect(ui.pushButton_back, SIGNAL(clicked()), this, SLOT(close()));
 

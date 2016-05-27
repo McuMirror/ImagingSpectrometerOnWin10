@@ -167,6 +167,7 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CONFIG.h" />
     <ClInclude Include="GeneratedFiles\ui_photocheckwindow.h" />
     <ClInclude Include="GeneratedFiles\ui_spectralanalysis.h" />
     <CustomBuild Include="mydiagram.h">

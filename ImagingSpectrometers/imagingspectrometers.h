@@ -1,6 +1,8 @@
 #pragma once
 #include <QtWidgets>
 
+#include "CONFIG.h"
+
 #ifndef __WIN__
 #include <Windows.h>
 #include <fstream>
@@ -56,6 +58,8 @@ public:
 	int getWavelengthNow();
 	int getPhotoWidth();
 	int getPhotoHeight();
+	int getDataHeight();
+	int getDataWidth();
 	void setResolution(int width, int height);
 
 	void pauseDevice();
@@ -63,16 +67,16 @@ public:
 
 	void getData();//获取原始数据
 	void getImage();//变为图像显示
-	void getImage_hist();
 	Mat takephoto();
 	Mat getMatFromFile(String path);
 
-	void getCurvesMat();
+	//void getCurvesMat();
 	//bool writeCurvesMat();
 	//bool readCurvesMat();
 
 	String getCorrectionPath();
 	String getPhotoPath();
+	void setSystemPath(String);
 	String getSystemPath();
 	void setCustomPath(String);
 	String getCustomPath();
