@@ -110,33 +110,33 @@ void PhotoCheckWindow::updateImage()
 }
 #endif
 
-Mat PhotoCheckWindow::gethist(Mat &temp)
-{
-	Mat image_16UC1_raw;
-	image_16UC1_raw = Mat(temp.rows, temp.cols, CV_16UC1, temp.data);
-
-	/// 设定bin数目
-	int histSize = 0x0FFF;
-
-	/// 设定取值范围 ( R,G,B) )
-	float range[] = { 0, 0x0FFF };
-	const float* histRange = { range };
-
-	bool uniform = true; bool accumulate = false;
-	Mat hist;
-	calcHist(&image_16UC1_raw, 1, 0, Mat(), hist, 1, &histSize, &histRange, uniform, accumulate);
-
-	Mat final;
-	final.create(image_16UC1_raw.rows, image_16UC1_raw.cols, CV_8UC1);
-	USHORT *ptr = image_16UC1_raw.ptr<USHORT>();
-	UCHAR *ptr_dst = final.ptr<UCHAR>();
-
-	for (int i = 0; i < image_16UC1_raw.total(); i++)
-	{
-		ptr_dst[i] = min(sqrt( ptr[i] * 65535.0 / 4095.0),255.0);
-	}
-	return final;
-}
+//Mat PhotoCheckWindow::gethist(Mat &temp)
+//{
+//	Mat image_16UC1_raw;
+//	image_16UC1_raw = Mat(temp.rows, temp.cols, CV_16UC1, temp.data);
+//
+//	/// 设定bin数目
+//	int histSize = 0x0FFF;
+//
+//	/// 设定取值范围 ( R,G,B) )
+//	float range[] = { 0, 0x0FFF };
+//	const float* histRange = { range };
+//
+//	bool uniform = true; bool accumulate = false;
+//	Mat hist;
+//	calcHist(&image_16UC1_raw, 1, 0, Mat(), hist, 1, &histSize, &histRange, uniform, accumulate);
+//
+//	Mat final;
+//	final.create(image_16UC1_raw.rows, image_16UC1_raw.cols, CV_8UC1);
+//	USHORT *ptr = image_16UC1_raw.ptr<USHORT>();
+//	UCHAR *ptr_dst = final.ptr<UCHAR>();
+//
+//	for (int i = 0; i < image_16UC1_raw.total(); i++)
+//	{
+//		ptr_dst[i] = min(sqrt( ptr[i] * 65535.0 / 4095.0),255.0);
+//	}
+//	return final;
+//}
 
 void PhotoCheckWindow::setPhotoSize(int h,int w)
 {
@@ -172,21 +172,21 @@ Mat PhotoCheckWindow::getMatFromFile(cv::String path)
 		delete[] temp;
 		temp = nullptr;
 	}
-	else if (type == ".hex")
-	{
-		setPhotoSize(640, 480);
-		std::ifstream ifs(path, std::ios::in | std::ios::binary);
-		long len = m_photo_height * m_photo_width;
-		byte *temp;
-		temp = new UCHAR[m_photo_height * m_photo_width];
-		ZeroMemory(temp, m_photo_height * m_photo_width);
-		ifs.read((char*)temp, len);
-		ifs.close();
-		Mat t = Mat(m_photo_height, m_photo_width, CV_8UC1, temp);
-		t.copyTo(output);
-		delete[] temp;
-		temp = nullptr;
-	}
+	//else if (type == ".hex")
+	//{
+	//	setPhotoSize(640, 480);
+	//	std::ifstream ifs(path, std::ios::in | std::ios::binary);
+	//	long len = m_photo_height * m_photo_width;
+	//	byte *temp;
+	//	temp = new UCHAR[m_photo_height * m_photo_width];
+	//	ZeroMemory(temp, m_photo_height * m_photo_width);
+	//	ifs.read((char*)temp, len);
+	//	ifs.close();
+	//	Mat t = Mat(m_photo_height, m_photo_width, CV_8UC1, temp);
+	//	t.copyTo(output);
+	//	delete[] temp;
+	//	temp = nullptr;
+	//}
 
 	return output;
 }

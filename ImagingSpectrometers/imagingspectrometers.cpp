@@ -44,9 +44,9 @@ void ImagingSpectrometers::doWork()
 	while (1){
 		if (m_is_working)
 		{
-			m_lock.lock();
+		//	m_lock.lock();
 			getData();
-			m_lock.unlock();
+		//	m_lock.unlock();
 		}
 		if (m_is_closed)
 			break;
@@ -235,10 +235,28 @@ void ImagingSpectrometers::getImage()
 
 }
 #else
+//void ImagingSpectrometers::getImage()
+//{
+//	Mat image_8UC2_raw;
+//	image_8UC2_raw = Mat(m_image_height, m_image_width, CV_8UC2, m_image_data);
+//
+//	std::vector<Mat> mat_vector;
+//	split(image_8UC2_raw, mat_vector);
+//
+//	Mat low8_bits = mat_vector[0];
+//	Mat high8_bits = mat_vector[1];
+//
+//	Mat image_tmp;
+//	cvtColor(low8_bits, image_tmp, CV_GRAY2RGB);//单通道变为3通道
+//
+//	Mat image_show;
+//	image_show = image_tmp.clone();
+//	QImage image_final = QImage(image_show.data, image_show.cols, image_show.rows, image_show.step, QImage::Format_RGB888);
+//	m_pixmap = QPixmap::fromImage(image_final);
+//
+//}
 void ImagingSpectrometers::getImage()
 {
-
-	//	getImage_hist();
 
 	Mat image_16UC1_raw;
 	image_16UC1_raw = Mat(m_image_height, m_image_width, CV_16UC1, m_image_data);
@@ -924,3 +942,48 @@ void ImagingSpectrometers::getFileList(std::string path, std::vector<std::string
 //
 //	return true;
 //}
+
+void ImagingSpectrometers::scalePartAverage(const Mat &src, Mat &dst, double xRatio, double yRatio)
+{
+	int rows = static_cast<int>(src.rows * xRatio);
+	int cols = static_cast<int>(src.cols * yRatio);
+
+	dst.create(rows, cols, src.type());
+
+	int lastRow = 0;
+	int lastCol = 0;
+
+	UCHAR *p;
+	for (int i = 0; i < rows; i++) {
+		p = dst.ptr<UCHAR>(i);
+		int row = static_cast<int>((i + 1) / xRatio + 0.5) - 1;
+
+		for (int j = 0; j < cols; j++) {
+			int col = static_cast<int>((j + 1) / yRatio + 0.5) - 1;
+
+			UCHAR pix;
+			average(src, Point_<int>(lastRow, lastCol), Point_<int>(row, col), pix);
+			p[j] = pix;
+
+			lastCol = col + 1; //下一个子块左上角的列坐标，行坐标不变
+		}
+		lastCol = 0; //子块的左上角列坐标，从0开始
+		lastRow = row + 1; //子块的左上角行坐标
+	}
+}
+
+void ImagingSpectrometers::average(const Mat &img, Point_<int> a, Point_<int> b, UCHAR &p)
+{
+
+	const UCHAR *pix;
+	int temp = 0;
+	for (int i = a.x; i <= b.x; i++){
+		pix = img.ptr<UCHAR>(i);
+		for (int j = a.y; j <= b.y; j++){
+			temp += pix[j];
+		}
+	}
+
+	int count = (b.x - a.x + 1) * (b.y - a.y + 1);
+	p = temp / count;
+}

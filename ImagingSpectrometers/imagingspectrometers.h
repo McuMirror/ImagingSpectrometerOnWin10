@@ -87,6 +87,9 @@ public:
 	bool readConfigFile(String, char *);
 	void getFileList(std::string path, std::vector<std::string>& files);
 
+	void scalePartAverage(const Mat &src, Mat &dst, double xRatio, double yRatio);
+	void average(const Mat &img, Point_<int> a, Point_<int> b, UCHAR &p);
+
 public:
 	CCyUSBDevice *m_usb_device;
 	CCyUSBEndPoint *m_ept_bulk_in;    //øÈΩ” ’∂Àµ„

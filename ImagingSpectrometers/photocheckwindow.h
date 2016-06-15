@@ -32,7 +32,7 @@ public:
 	void setFileList(std::vector<std::string> &files);
 	void setPhotoSize(int h, int w);
 	Mat getMatFromFile(cv::String path);
-	Mat gethist(Mat &t);
+	//Mat gethist(Mat &t);
 	String getCurrentFilePath();
 
 public slots:

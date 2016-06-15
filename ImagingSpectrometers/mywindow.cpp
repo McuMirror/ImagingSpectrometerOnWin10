@@ -406,19 +406,14 @@ void MyWindow::whiteboard()
 		int analogGain = 0;
 		int count;
 
-#ifdef __IN8BITS__
-		int thresholdLower = 240;//12位需要修改阈值
-		int thresholdUpper = 252;
-#else
-		int thresholdLower = 0xF00;
-		int thresholdUpper = 0xFC0;
-#endif
-		int pixelValueMax = 0;
-		int sum;
-		int step = 10;
+		int thresholdLower = 230;//12位需要修改阈值
+		int thresholdUpper = 250;
+
+		double pixelValueMax;
 		boolean flagAdjust;
 		boolean isParameterAvailable;
 		boolean isDirectionChanged;
+		boolean isReadyToBreak;
 		byte* cameraParW = new byte[3 + bandcount * 3];
 		Mat data_photo_processing;
 		int cameraParIndex = 2;
@@ -426,98 +421,210 @@ void MyWindow::whiteboard()
 		cameraParW[0] = (byte)(LCTF_range / 10);
 		cameraParW[1] = (byte)LCTF_Gap;
 
-		while (len <= LCTF_range) {
+		while (len <= LCTF_range) 
+		{
 			exposureTime = epMax;
 			digitalGain = digitalGainMax;
 			analogGain = analogGainMax;
 			flagAdjust = true;
 			isParameterAvailable = true;
 			isDirectionChanged = false;
+			isReadyToBreak = false;
 
 			m_mydevice->controlLCTF(WAVELENGTH, len + WavelengthMin);//更改波长
+			//ui.horizontalSlider_Wavelength->setValue(len + WavelengthMin);
 
-			while (flagAdjust) {
+			while (flagAdjust)
+			{
 				m_mydevice->controlDevice(DIGITALGAIN, digitalGain);
 				m_mydevice->controlDevice(ANALOGGAIN, analogGain);
 				m_mydevice->controlDevice(EXPOSURETIME, exposureTime);
+				//ui.horizontalSlider_ExposureTime->setValue(exposureTime);
+				//ui.horizontalSlider_DigitalGain->setValue(digitalGain);
+				//ui.comboBox_AnalogGain->setCurrentIndex(analogGain);
 				for (int i = 0; i < 2; ++i)
+				{
 					m_mydevice->takephoto();
+				}
 				//去除最初的n张无效图片
 				data_photo_processing = m_mydevice->takephoto();
 
-				count = 0;
-				while (count < photo_data_size - step){
-					sum = 0;
-					for (int i = 0; i < step; ++i) {
-						sum += (data_photo_processing.data[count + i] );//12位需要修改
-					}
-					if (sum / step > thresholdUpper) {
-						isParameterAvailable = false;
-						break;
-					}
-					if (sum / step > pixelValueMax) {
-						pixelValueMax = sum / step;
-					}
-					isParameterAvailable = true;
-					count += step;
-				}
-
+				pixelValueMax = 0;
+				//确认图片曝光正常
+				Mat temp_src,temp_dst;
+				double minval, maxval;
+#ifdef __IN8BITS__
+				temp_src = data_photo_processing;
+#else
+				data_photo_processing.convertTo(temp_src, CV_8U, 0.06227);
+#endif
+				m_mydevice->scalePartAverage(temp_src, temp_dst, 0.25, 0.25);
+				minMaxIdx(temp_dst, &minval, &maxval);
+				pixelValueMax = maxval;
+				isParameterAvailable = (maxval < thresholdUpper);
+				//调整参数
 				if (!isParameterAvailable)
 				{
+					isReadyToBreak = isDirectionChanged;
 					isDirectionChanged = false;
-					if (digitalGain < 8) {
-						if (exposureTime < 6) {
-							exposureTime = 0;
+					if (digitalGain < digitalGainMax/2)
+					{
+						if (exposureTime < epMax/2)
+						{
 							analogGain--;
 							digitalGain = digitalGainMax;
 							exposureTime = epMax;
-							if (analogGain < 0){
-								analogGain = 0;
-								//flagAdjust = false;
+							if (analogGain < 1)
+							{
+								flagAdjust = false;
 								break;
 							}
 						}
-						else {
-							exposureTime = exposureTime / 2;
+						else
+						{
+							exposureTime = exposureTime - 10;
 						}
 					}
-					else {
-						digitalGain = digitalGain / 2;
+					else
+					{
+						digitalGain = digitalGain - 10;
 						exposureTime = epMax;
 					}
 				}
-				else {
-					if (pixelValueMax > thresholdLower || isDirectionChanged) {
-						//flagAdjust = false;
+				else
+				{
+					if (pixelValueMax > thresholdLower)
+					{
+						flagAdjust = false;
 						break;
 					}
-					//else if (sb_manualEp_value<1 && sb_global_value<1 && analogGain<=0){
-					//flagAdjust = false;
-					//break;
-					//}
-					else{
+					else
+					{
 						isDirectionChanged = true;
-						if (exposureTime >= epMax) {
-							if (digitalGain >= digitalGainMax) {
-								if (analogGain >= analogGainMax) {
+						if (digitalGain >= digitalGainMax)
+						{
+							if (exposureTime >= epMax)
+							{
+								if (analogGain >= analogGainMax)
+								{
+									analogGain = analogGainMax;
 									break;
 								}
-								else{
+								else
+								{
 									analogGain++;
 								}
 								digitalGain = 0;
-							}
-							else{
-								digitalGain += 5;
 								exposureTime = 0;
 							}
+							else
+							{
+								exposureTime += 2;
+								digitalGain = digitalGainMax;
+							}
 						}
-						else{
-							exposureTime += 5;
+						else
+						{
+							digitalGain += 2;
+						}
+						if (isReadyToBreak)
+						{
+							break;
 						}
 					}
 				}
+
 			}
+
+			//while (flagAdjust) 
+			//{
+			//	m_mydevice->controlDevice(DIGITALGAIN, digitalGain);
+			//	m_mydevice->controlDevice(ANALOGGAIN, analogGain);
+			//	m_mydevice->controlDevice(EXPOSURETIME, exposureTime);
+			//	for (int i = 0; i < 2; ++i)
+			//	{
+			//		m_mydevice->takephoto();
+			//	}
+			//	//去除最初的n张无效图片
+			//	data_photo_processing = m_mydevice->takephoto();
+
+			//	pixelValueMax = 0;
+			//	//确认图片曝光正常
+			//	Mat temp;
+			//	double minval, maxval;
+			//	m_mydevice->scalePartAverage(data_photo_processing, temp, 0.25, 0.25);
+			//	minMaxIdx(temp, &minval, &maxval);
+			//	pixelValueMax = maxval;
+			//	isParameterAvailable = (maxval < thresholdUpper);
+			//	//调整参数
+			//	if (!isParameterAvailable)
+			//	{
+			//		isDirectionChanged = false;
+			//		if (digitalGain < 6) 
+			//		{
+			//			if (exposureTime < 6) 
+			//			{
+			//				analogGain--;
+			//				digitalGain = digitalGainMax;
+			//				exposureTime = epMax;
+			//				if (analogGain < 0)
+			//				{
+			//					analogGain = 0;
+			//					flagAdjust = false;
+			//					break;
+			//				}
+			//			}
+			//			else 
+			//			{
+			//				exposureTime = exposureTime - 5;
+			//			}
+			//		}
+			//		else 
+			//		{
+			//			digitalGain = digitalGain - 5;
+			//			exposureTime = epMax;
+			//		}
+			//	}
+			//	else 
+			//	{
+			//		if (pixelValueMax > thresholdLower || isDirectionChanged) 
+			//		{
+			//			flagAdjust = false;
+			//			break;
+			//		}
+			//		else
+			//		{
+			//			isDirectionChanged = true;
+			//			if (digitalGain >= digitalGainMax)
+			//			{
+			//				if (exposureTime >= epMax)
+			//				{
+			//					if (analogGain >= analogGainMax) 
+			//					{
+			//						analogGain = analogGainMax;
+			//						break;
+			//					}
+			//					else
+			//					{
+			//						analogGain++;
+			//					}
+			//					digitalGain = 0;
+			//					exposureTime = 0;
+			//				}
+			//				else
+			//				{
+			//					exposureTime += 1;
+			//					digitalGain = digitalGainMax;
+			//				}
+			//			}
+			//			else
+			//			{
+			//				digitalGain += 1;
+			//			}
+			//		}
+			//	}
+			//
+			//}
 			//这里保存的图像
 			int w = len + WavelengthMin;
 			char c[5] = {0};
@@ -636,7 +743,8 @@ void MyWindow::photo()
 			int exposureTime;
 
 			while (len <= LCTF_range) {
-				m_mydevice->controlLCTF(WAVELENGTH, len+WavelengthMin);
+				m_mydevice->controlLCTF(WAVELENGTH, len+WavelengthMin);//不应该通过更改UI的方式调整相机参数，这样会导致控制信息无法及时写入相机
+
 				exposureTime = cameraParR[cameraParIndex++];
 				digitalGain = cameraParR[cameraParIndex++];
 				analogGain = cameraParR[cameraParIndex++];
@@ -648,14 +756,14 @@ void MyWindow::photo()
 				//添加多次拍照
 				//for (int i = 0; i < PHOTO_TIMES + 1; i++)
 				//{
-					//for (int j = 0; j < 2; ++j)
-					//	m_mydevice->takephoto();
-					////去除最初的n张无效图片
+					for (int j = 0; j < 2; ++j)
+						m_mydevice->takephoto();
+					//去除最初的n张无效图片
 					data_photo_processing = m_mydevice->takephoto();
 					int w = len + WavelengthMin;
-					char c[5] = { 0 };
-					itoa(w, c, 10);
-					String t(c);
+					QString c = QString::number(w);
+
+					String t = c.toStdString();
 					//char ic[1] = { 0 };
 					//itoa(i, ic, 10);
 #ifdef __IN8BITS__
@@ -688,10 +796,11 @@ void MyWindow::photo()
 		// 设置分辨率 640*480
 		m_mydevice->setResolution(data_width, data_height);
 		process.setValue(LCTF_range + 1);
-	}
+	
 	m_thread_curves->start();
-	m_mydevice->continueDevice();
 	QMessageBox::about(this, QStringLiteral("提示"), QStringLiteral("拍照完成"));
+	}
+	m_mydevice->continueDevice();
 }
 
 void MyWindow::photoOnce()
@@ -723,9 +832,8 @@ void MyWindow::photoOnce()
 		dt.setDate(date.currentDate());
 		QString currentDate = dt.toString("yyyyMMddhhmmss");
 		String name = currentDate.toStdString();
-		char a[1] = {0};
-		itoa(i,a,10);
-		String num = a;
+		QString a = QString::number(i);//这里如果采用itoa可能出现问题
+		String num = a.toStdString();
 #ifdef __IN8BITS__
 		String nameFull = photoPath + '/' + name + '(' + num + ')' + ".bmp";
 #else
